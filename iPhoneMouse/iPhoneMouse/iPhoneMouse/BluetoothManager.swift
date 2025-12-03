@@ -21,7 +21,6 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private var connectedPeripheral: CBPeripheral?
     private var mouseCharacteristic: CBCharacteristic?
 
-    // Bluetooth service UUID (must match Mac server)
     private let serviceUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABC")
     private let characteristicUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABD")
 
@@ -33,8 +32,6 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
     override init() {
         super.init()
-        // Create CBCentralManager on main queue to ensure permission request happens immediately
-        // queue: nil uses the main queue, which is required for permission dialogs
         centralManager = CBCentralManager(delegate: self, queue: .main)
     }
 
@@ -82,7 +79,6 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         let deviceName = peripheral.name ?? "Unknown Device"
 
-        // Check if we already have this device
         if !discoveredDevices.contains(where: { $0.peripheral.identifier == peripheral.identifier }) {
             let device = DiscoveredDevice(id: peripheral.identifier, peripheral: peripheral, name: deviceName)
             DispatchQueue.main.async {
@@ -176,7 +172,6 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     func reconnect() {
-        // Allow restarting scanning after disconnect
         if status == .stopped && centralManager.state == .poweredOn {
             startScanning()
         }

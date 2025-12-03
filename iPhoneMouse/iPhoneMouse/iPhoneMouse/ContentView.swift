@@ -6,7 +6,6 @@ struct ContentView: View {
     @StateObject private var bluetoothManager = BluetoothManager()
     @StateObject private var multipeerManager = MultipeerManager()
     @StateObject private var bonjourManager = BonjourDiscoveryManager()
-    @StateObject private var networkManager = NetworkManager()
 
     @State private var isConnected: Bool = false
     @State private var discoveryTimeout: Bool = false
@@ -24,27 +23,15 @@ struct ContentView: View {
             }
         }
         .task {
-            // Verify Info.plist is being read (debug only - remove in production)
-            #if DEBUG
-            PermissionChecker.checkInfoPlist()
-            #endif
-
-            // Use .task instead of .onAppear to ensure it runs immediately
-            // This ensures permission requests happen as soon as the view appears
             startDiscovery()
         }
         .onAppear {
-            // When app appears (e.g., returning from Settings), restart discovery
-            // This allows retry after user enables permissions
             if !isConnected {
                 startDiscovery()
             }
         }
         .onChange(of: isConnected) { oldValue, newValue in
-            // When disconnecting (going from connected to not connected), restart discovery
-            // But only if we're not in the middle of connecting to a new device
             if oldValue == true && newValue == false && intendedConnectionMethod == nil {
-                // Small delay to ensure disconnect is complete
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     startDiscovery()
                 }
@@ -436,41 +423,24 @@ struct ContentView: View {
     }
 
     private func startDiscovery() {
-        // CRITICAL: These calls must happen synchronously on the main thread
-        // to trigger iOS permission dialogs. Do NOT wrap these in async blocks.
-
-        // Reset timeout
         discoveryTimeout = false
 
-        // Bluetooth: CBCentralManager was created in BluetoothManager.init()
-        // The permission dialog should have appeared when the manager was initialized.
-        // If it didn't, check that Info.plist has NSBluetoothAlwaysUsageDescription
-        // Restart scanning if stopped
         if bluetoothManager.status == .stopped {
             bluetoothManager.reconnect()
         }
 
-        // Multipeer (Wi-Fi Direct): This MUST be called synchronously to trigger permission
-        // MCNearbyServiceBrowser.startBrowsingForPeers() triggers Local Network permission
-        // Note: Local Network permission may not show a dialog - check Settings if needed
         if case .stopped = multipeerManager.status {
             multipeerManager.startBrowsing()
         } else if case .error = multipeerManager.status {
-            // If there was an error, try to restart (user may have fixed permission)
             multipeerManager.startBrowsing()
         }
 
-        // Bonjour: This MUST be called synchronously to trigger permission
-        // NetServiceBrowser.searchForServices() triggers Local Network permission
-        // Note: Local Network permission may not show a dialog - check Settings if needed
         if bonjourManager.status == .stopped {
             bonjourManager.startDiscovery()
         } else if case .error = bonjourManager.status {
-            // If there was an error, try to restart
             bonjourManager.startDiscovery()
         }
 
-        // Set timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + discoveryTimeoutSeconds) {
             if !isConnected && allDiscoveredDevices.isEmpty {
                 discoveryTimeout = true
@@ -494,11 +464,8 @@ struct ContentView: View {
     }
 
     private func connectToDevice(_ device: DiscoveredDeviceItem) {
-        // Set the intended connection method before disconnecting
         intendedConnectionMethod = device.method
 
-        // Disconnect managers that are NOT the intended connection method
-        // Also disconnect the intended manager if it's already connected (switching connections)
         switch device.method {
         case .bluetooth:
             if multipeerManager.isConnected {
@@ -510,7 +477,6 @@ struct ContentView: View {
             if bluetoothManager.isConnected {
                 bluetoothManager.disconnect()
             }
-            networkManager.disconnect()
         case .multipeer:
             if bluetoothManager.isConnected {
                 bluetoothManager.disconnect()
@@ -518,12 +484,9 @@ struct ContentView: View {
             if bonjourManager.isConnected {
                 bonjourManager.disconnect()
             }
-            // For multipeer, only disconnect if already connected
-            // Don't stop browsing as we need it for connection
             if multipeerManager.isConnected {
                 multipeerManager.disconnect()
             }
-            networkManager.disconnect()
         case .bonjour:
             if bluetoothManager.isConnected {
                 bluetoothManager.disconnect()
@@ -534,17 +497,12 @@ struct ContentView: View {
             if bonjourManager.isConnected {
                 bonjourManager.disconnect()
             }
-            networkManager.disconnect()
         }
 
         motionController.stopMotionUpdates()
-
-        // Reset connection state
         isConnected = false
         discoveryTimeout = false
 
-        // Stop discovery for other methods, but keep the intended method's discovery active
-        // (needed for multipeer which requires active browser)
         switch device.method {
         case .bluetooth:
             multipeerManager.stopBrowsing()
@@ -552,17 +510,14 @@ struct ContentView: View {
         case .multipeer:
             bluetoothManager.stopScanning()
             bonjourManager.stopDiscovery()
-            // Ensure multipeer is browsing - it's needed for connection
             if multipeerManager.status == .stopped {
                 multipeerManager.startBrowsing()
             }
         case .bonjour:
             bluetoothManager.stopScanning()
             multipeerManager.stopBrowsing()
-            // Bonjour can connect directly without active discovery
         }
 
-        // Connect using the selected method
         switch device.method {
         case .bluetooth:
             if let bluetoothDevice = device.bluetoothDevice {
@@ -570,24 +525,17 @@ struct ContentView: View {
             }
         case .multipeer:
             if let peer = device.multipeerPeer {
-                // Ensure session and browser are active for multipeer
                 if case .stopped = multipeerManager.status {
-                    // Start browsing and wait for session to be ready
                     multipeerManager.startBrowsing()
-                    // Wait longer for session to be fully initialized
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.multipeerManager.connect(to: peer)
                     }
                 } else if case .error = multipeerManager.status {
-                    // If there was an error, restart browsing
                     multipeerManager.startBrowsing()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.multipeerManager.connect(to: peer)
                     }
                 } else {
-                    // Browser is active (browsing or connected)
-                    // Always add a small delay to ensure session is fully ready
-                    // This helps prevent the first connection attempt from failing
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         self.multipeerManager.connect(to: peer)
                     }
@@ -601,9 +549,7 @@ struct ContentView: View {
     }
 
     private func handleConnection(method: ConnectionMethod) {
-        // Verify this is the intended connection method
         guard intendedConnectionMethod == method else {
-            // This connection is not the one we want, disconnect it
             switch method {
             case .bluetooth:
                 bluetoothManager.disconnect()
@@ -618,21 +564,10 @@ struct ContentView: View {
         isConnected = true
         discoveryTimeout = false
 
-        // Set the appropriate manager in motion controller
         motionController.bluetoothManager = method == .bluetooth ? bluetoothManager : nil
-        motionController.networkManager = (method == .bonjour || method == .multipeer) ? networkManager : nil
+        motionController.multipeerManager = method == .multipeer ? multipeerManager : nil
+        motionController.bonjourManager = method == .bonjour ? bonjourManager : nil
 
-        // For multipeer and bonjour, we need to set up the network manager connection
-        if method == .multipeer {
-            // Multipeer handles its own connection
-            motionController.multipeerManager = multipeerManager
-        } else if method == .bonjour {
-            // Bonjour handles its own connection
-            motionController.bonjourManager = bonjourManager
-        }
-
-        // Start motion updates - the reference will be set automatically after a short delay
-        // This ensures the reference is set correctly when connection is established
         motionController.startMotionUpdates()
     }
 
@@ -641,7 +576,6 @@ struct ContentView: View {
         bluetoothManager.disconnect()
         multipeerManager.disconnect()
         bonjourManager.disconnect()
-        networkManager.disconnect()
 
         motionController.stopMotionUpdates()
         isConnected = false

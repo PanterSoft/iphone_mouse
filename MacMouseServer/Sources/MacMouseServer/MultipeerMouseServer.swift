@@ -5,39 +5,23 @@ import AppKit
 class MultipeerMouseServer: NSObject {
     private var session: MCSession?
     private var advertiser: MCNearbyServiceAdvertiser?
-    // Service type must match iOS app exactly
-    // Must be 1-15 characters, lowercase, alphanumeric and hyphens only
     private let serviceType = "iphonemouse"
     private var myPeerID: MCPeerID
 
     override init() {
-        // Create peer ID with Mac's hostname
         let hostname = Host.current().name ?? "Mac Mouse Server"
         myPeerID = MCPeerID(displayName: hostname)
         super.init()
     }
 
     func start() {
-        print("Starting Wi-Fi Direct (Multipeer) Mouse Server...")
-        print("Service type: \(serviceType)")
-        print("Peer name: \(myPeerID.displayName)")
-
-        // Create session with encryption
         session = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .required)
         session?.delegate = self
 
-        // Start advertising
-        // Multipeer works over Wi-Fi Direct and Bluetooth, no network required
         advertiser = MCNearbyServiceAdvertiser(peer: myPeerID, discoveryInfo: nil, serviceType: serviceType)
         advertiser?.delegate = self
 
-        print("Starting Multipeer advertising...")
-        print("  Service type: \(serviceType)")
-        print("  Peer name: \(myPeerID.displayName)")
         advertiser?.startAdvertisingPeer()
-        print("✓ Wi-Fi Direct service is advertising. iPhone can now discover and connect.")
-        print("  Note: This works without Wi-Fi network - uses peer-to-peer connection")
-        print("  Make sure Wi-Fi and Bluetooth are enabled on both devices")
     }
 
     func stop() {
@@ -83,12 +67,11 @@ extension MultipeerMouseServer: MCSessionDelegate {
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         switch state {
         case .connected:
-            print("✅ iPhone CONNECTED via Wi-Fi Direct: \(peerID.displayName)")
-            print("   Mouse control is now active!")
+            print("✅ iPhone connected via Wi-Fi Direct")
         case .connecting:
-            print("📱 iPhone connecting via Wi-Fi Direct: \(peerID.displayName)")
+            break
         case .notConnected:
-            print("❌ iPhone disconnected via Wi-Fi Direct: \(peerID.displayName)")
+            print("❌ iPhone disconnected (Wi-Fi Direct)")
         @unknown default:
             break
         }
@@ -100,37 +83,24 @@ extension MultipeerMouseServer: MCSessionDelegate {
         }
     }
 
-    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {
-        // Not used
-    }
-
-    func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {
-        // Not used
-    }
-
-    func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {
-        // Not used
-    }
+    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
+    func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
+    func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
 }
 
 // MARK: - MCNearbyServiceAdvertiserDelegate
 extension MultipeerMouseServer: MCNearbyServiceAdvertiserDelegate {
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
-        // Accept all invitations
-        print("✓ Received connection invitation from: \(peerID.displayName)")
         invitationHandler(true, session)
     }
 
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
-        print("✗ Failed to start advertising: \(error.localizedDescription)")
-        print("  Error details: \(error)")
+        print("✗ Wi-Fi Direct advertising failed: \(error.localizedDescription)")
     }
 
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didStartAdvertisingPeer error: Error?) {
         if let error = error {
-            print("✗ Advertising error: \(error.localizedDescription)")
-        } else {
-            print("✓ Advertising started successfully")
+            print("✗ Wi-Fi Direct error: \(error.localizedDescription)")
         }
     }
 }

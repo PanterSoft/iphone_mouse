@@ -7,69 +7,47 @@ class BluetoothMouseServer: NSObject, CBPeripheralManagerDelegate {
     private var characteristic: CBMutableCharacteristic?
     private var connectedCentral: CBCentral?
 
-    // Bluetooth service UUID
     private let serviceUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABC")
     private let characteristicUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABD")
 
     override init() {
         super.init()
-        print("🔵 Initializing Bluetooth Peripheral Manager (this will request Bluetooth permission)...")
         peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
-        print("🔵 Bluetooth Peripheral Manager initialized - waiting for state update...")
     }
 
     func start() {
-        print("Starting Bluetooth Mouse Server...")
-        print("Checking Bluetooth state...")
-
-        // Check current state
         switch peripheralManager.state {
         case .poweredOn:
-            print("✓ Bluetooth is powered on")
             setupService()
         case .poweredOff:
-            print("✗ Bluetooth is turned off. Please enable Bluetooth in System Settings.")
+            print("✗ Bluetooth is turned off")
         case .unauthorized:
-            print("✗ Bluetooth permission denied.")
-            print("  macOS may prompt for permission. If not, check System Settings > Privacy & Security > Bluetooth")
+            print("✗ Bluetooth permission denied - check System Settings")
         case .unsupported:
-            print("✗ Bluetooth is not supported on this Mac.")
-        case .resetting:
-            print("⚠ Bluetooth is resetting... waiting...")
-        case .unknown:
-            print("⚠ Bluetooth state unknown. Waiting for state update...")
-        @unknown default:
-            print("⚠ Unknown Bluetooth state: \(peripheralManager.state.rawValue)")
+            print("✗ Bluetooth not supported")
+        default:
+            break
         }
     }
 
     // MARK: - CBPeripheralManagerDelegate
 
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        print("Bluetooth state changed: \(peripheral.state.rawValue)")
         switch peripheral.state {
         case .poweredOn:
-            print("✓ Bluetooth is now powered on")
             setupService()
         case .poweredOff:
-            print("✗ Bluetooth is turned off. Please enable Bluetooth in System Settings.")
+            print("✗ Bluetooth is turned off")
         case .unauthorized:
-            print("✗ Bluetooth permission denied.")
-            print("  Go to: System Settings > Privacy & Security > Bluetooth")
-            print("  Make sure Bluetooth access is enabled for Terminal or this app")
+            print("✗ Bluetooth permission denied - check System Settings")
         case .unsupported:
-            print("✗ Bluetooth is not supported on this Mac.")
-        case .resetting:
-            print("⚠ Bluetooth is resetting...")
-        case .unknown:
-            print("⚠ Bluetooth state unknown.")
-        @unknown default:
-            print("⚠ Unknown Bluetooth state: \(peripheral.state.rawValue)")
+            print("✗ Bluetooth not supported")
+        default:
+            break
         }
     }
 
     private func setupService() {
-        // Create characteristic
         characteristic = CBMutableCharacteristic(
             type: characteristicUUID,
             properties: [.write, .writeWithoutResponse],
@@ -77,11 +55,9 @@ class BluetoothMouseServer: NSObject, CBPeripheralManagerDelegate {
             permissions: [.writeable]
         )
 
-        // Create service
         let service = CBMutableService(type: serviceUUID, primary: true)
         service.characteristics = [characteristic!]
 
-        // Add service to peripheral
         peripheralManager.add(service)
     }
 
@@ -91,9 +67,6 @@ class BluetoothMouseServer: NSObject, CBPeripheralManagerDelegate {
             return
         }
 
-        print("✓ Bluetooth service added successfully")
-
-        // Start advertising
         let advertisementData: [String: Any] = [
             CBAdvertisementDataServiceUUIDsKey: [serviceUUID],
             CBAdvertisementDataLocalNameKey: "Mac Mouse Server"
@@ -109,26 +82,22 @@ class BluetoothMouseServer: NSObject, CBPeripheralManagerDelegate {
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         connectedCentral = central
-        print("✅ iPhone CONNECTED via Bluetooth!")
-        print("   Central ID: \(central.identifier)")
-        print("   Mouse control is now active!")
+        print("✅ iPhone connected via Bluetooth")
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
         connectedCentral = nil
-        print("❌ iPhone disconnected via Bluetooth")
+        print("❌ iPhone disconnected (Bluetooth)")
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
         for request in requests {
             guard let data = request.value else { continue }
 
-            // Process the movement data
             if let message = String(data: data, encoding: .utf8) {
                 processMessage(message)
             }
 
-            // Respond to the request
             peripheralManager.respond(to: request, withResult: .success)
         }
     }

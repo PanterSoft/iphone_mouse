@@ -14,6 +14,7 @@
 		D9A00C7F2EE07161003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
 		D9A00CA42EE07336003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
 		D9A00CF72EE073FE003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
+		D9A00D1E2EE076B5003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
 		D9DF30A02EDF47C400511D7A /* iPhoneMouse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iPhoneMouse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D9DF311E2EDF4CE400511D7A /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
 		D9DF316B2EDF534A00511D7A /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
@@ -82,6 +83,13 @@
 			sourceTree = "<group>";
 		};
 		D9A00CFD2EE073FE003F8664 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D9A00D242EE076B5003F8664 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -209,6 +217,10 @@
 				{
 					ProductGroup = D9A00CAA2EE07336003F8664 /* Products */;
 					ProjectRef = D9A00CA42EE07336003F8664 /* iPhoneMouse.xcodeproj */;
+				},
+				{
+					ProductGroup = D9A00D242EE076B5003F8664 /* Products */;
+					ProjectRef = D9A00D1E2EE076B5003F8664 /* iPhoneMouse.xcodeproj */;
 				},
 				{
 					ProductGroup = D9A00CFD2EE073FE003F8664 /* Products */;

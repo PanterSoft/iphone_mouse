@@ -14,12 +14,9 @@ class MacMouseServer: NSObject {
     private let serviceDomain = "local."
 
     override init() {
-        // Use IPv4-only TCP parameters
         let parameters = NWParameters.tcp
-        parameters.requiredInterfaceType = .wifi  // Prefer Wi-Fi
-        parameters.prohibitExpensivePaths = true   // Don't use cellular
-
-        // Note: IPv4 preference is handled by the connection endpoint resolution
+        parameters.requiredInterfaceType = .wifi
+        parameters.prohibitExpensivePaths = true
 
         let port = NWEndpoint.Port(integerLiteral: 12345)
         listener = try! NWListener(using: parameters, on: port)
@@ -32,7 +29,6 @@ class MacMouseServer: NSObject {
     }
 
     func start() {
-        // Try to get IP address first - this will trigger Local Network permission if needed
         print("🌐 Requesting Local Network permission (checking network interfaces)...")
         if let ipAddress = getIPv4Address() {
             print("✓ Server IPv4 address: \(ipAddress)")
@@ -47,60 +43,30 @@ class MacMouseServer: NSObject {
             guard let self = self else { return }
             switch state {
             case .ready:
-                print("✓ Server is ready on port \(self.port)")
-                if let ipAddress = self.getIPv4Address() {
-                    print("  Connect from iPhone using IP: \(ipAddress)")
-                }
-                // Start Bonjour advertising immediately when listener is ready
-                // This will also trigger Local Network permission if not already granted
                 DispatchQueue.main.async {
                     self.startBonjour()
                 }
             case .waiting(let error):
-                print("⚠ Server waiting: \(error.localizedDescription)")
-                // Check if error suggests Local Network permission issue
                 let errorDesc = error.localizedDescription.lowercased()
                 if errorDesc.contains("network") || errorDesc.contains("permission") || errorDesc.contains("denied") {
-                    print("  This might indicate Local Network permission is needed.")
-                    print("  Check: System Settings > Privacy & Security > Local Network")
+                    print("⚠ Network permission may be needed - check System Settings")
                 }
             case .failed(let error):
-                print("✗ Server failed: \(error.localizedDescription)")
-                // Check if error suggests Local Network permission issue
-                let errorDesc = error.localizedDescription.lowercased()
-                if errorDesc.contains("network") || errorDesc.contains("permission") || errorDesc.contains("denied") || errorDesc.contains("dns") {
-                    print("  This might indicate Local Network permission is needed.")
-                    print("  Check: System Settings > Privacy & Security > Local Network")
-                }
+                print("✗ Network server failed: \(error.localizedDescription)")
             default:
                 break
             }
         }
 
-        // Starting the listener will trigger Local Network permission request
-        print("🌐 Starting network listener (this will request Local Network permission)...")
         listener.start(queue: .global())
     }
 
     private func startBonjour() {
         let hostname = Host.current().name ?? "Mac Mouse Server"
-        // Note: NetService (formerly NSNetService) is the standard way to do Bonjour on macOS
-        // Publishing a Bonjour service will trigger Local Network permission request on macOS
-        print("🌐 Starting Bonjour advertising...")
         netService = NetService(domain: serviceDomain, type: serviceType, name: hostname, port: Int32(port))
         netService?.delegate = self
-        netService?.includesPeerToPeer = false // Use regular network, not peer-to-peer
-        print("  Service type: \(serviceType)")
-        print("  Service name: \(hostname)")
-        print("  Domain: \(serviceDomain)")
-        print("  Port: \(port)")
-
-        // Publishing will trigger Local Network permission if not already granted
-        // For command-line tools, this may not show a dialog, but permission is often auto-granted
+        netService?.includesPeerToPeer = false
         netService?.publish()
-        print("✓ Bonjour publish() called")
-        print("  Note: For command-line tools, Local Network permission may be automatically granted")
-        print("  If Bonjour doesn't work, check firewall: System Settings > Network > Firewall")
     }
 
     private func stopBonjour() {
@@ -121,7 +87,6 @@ class MacMouseServer: NSObject {
             let interface = ifptr.pointee
             let addrFamily = interface.ifa_addr.pointee.sa_family
 
-            // Only get IPv4 addresses (AF_INET)
             if addrFamily == UInt8(AF_INET) {
                 let name = String(cString: interface.ifa_name)
                 var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
@@ -130,20 +95,15 @@ class MacMouseServer: NSObject {
                            nil, socklen_t(0), NI_NUMERICHOST)
                 let address = String(cString: hostname)
 
-                // Skip loopback and link-local addresses
                 guard !address.hasPrefix("127.") && !address.hasPrefix("169.254.") else { continue }
 
-                // Prioritize Wi-Fi interfaces (en0, en1 typically Wi-Fi)
-                // Ethernet usually starts at en2 or higher
                 if name == "en0" || name == "en1" {
                     wifiAddress = address
                 } else if name.hasPrefix("en") && (name == "en2" || name == "en3" || name == "en4") {
-                    // Likely Ethernet
                     if ethernetAddress == nil {
                         ethernetAddress = address
                     }
                 } else if name.hasPrefix("en") {
-                    // Other network interfaces
                     if otherAddress == nil {
                         otherAddress = address
                     }
@@ -151,28 +111,25 @@ class MacMouseServer: NSObject {
             }
         }
 
-        // Return Wi-Fi first, then Ethernet, then other
         return wifiAddress ?? ethernetAddress ?? otherAddress
     }
 
     private func handleConnection(_ connection: NWConnection) {
         connections.append(connection)
         let connectionID = UUID().uuidString.prefix(8)
-        print("📱 New connection attempt from iPhone (ID: \(connectionID))")
 
         connection.stateUpdateHandler = { state in
             switch state {
             case .ready:
-                print("✅ iPhone CONNECTED via Wi-Fi (Bonjour) - ID: \(connectionID)")
-                print("   Mouse control is now active!")
+                print("✅ iPhone connected via Wi-Fi")
                 self.receiveData(on: connection)
             case .cancelled:
-                print("❌ iPhone disconnected (ID: \(connectionID))")
+                print("❌ iPhone disconnected (Wi-Fi)")
                 if let index = self.connections.firstIndex(where: { $0 === connection }) {
                     self.connections.remove(at: index)
                 }
             case .failed(let error):
-                print("❌ Connection failed (ID: \(connectionID)): \(error.localizedDescription)")
+                print("❌ Connection failed: \(error.localizedDescription)")
                 if let index = self.connections.firstIndex(where: { $0 === connection }) {
                     self.connections.remove(at: index)
                 }
@@ -187,7 +144,7 @@ class MacMouseServer: NSObject {
     private func receiveData(on connection: NWConnection) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 1024) { [weak self] data, _, isComplete, error in
             if let error = error {
-                print("Receive error: \(error.localizedDescription)")
+                print("✗ Receive error: \(error.localizedDescription)")
                 return
             }
 
@@ -220,16 +177,12 @@ class MacMouseServer: NSObject {
             let currentLocation = NSEvent.mouseLocation
             let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
 
-            // NSEvent.mouseLocation uses bottom-left origin
-            // Simply add the deltas (Y is already correct for bottom-left origin)
             let newX = currentLocation.x + deltaX
             let newY = currentLocation.y - deltaY  // Invert Y because screen Y increases upward
 
-            // Clamp to screen bounds
             let clampedX = max(screenFrame.minX, min(screenFrame.maxX, newX))
             let clampedY = max(screenFrame.minY, min(screenFrame.maxY, newY))
 
-            // Move mouse cursor using CGEvent
             let moveEvent = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: CGPoint(x: clampedX, y: clampedY), mouseButton: .left)
             moveEvent?.post(tap: .cghidEventTap)
         }
@@ -239,12 +192,6 @@ class MacMouseServer: NSObject {
 // MARK: - NetServiceDelegate
 extension MacMouseServer: NetServiceDelegate {
     func netServiceDidPublish(_ sender: NetService) {
-        print("✓ Bonjour service successfully published!")
-        print("  Service: \(sender.name)")
-        print("  Type: \(sender.type)")
-        print("  Domain: \(sender.domain)")
-        print("  Port: \(sender.port)")
-        print("  iPhone should now be able to discover this Mac")
     }
 
     func netService(_ sender: NetService, didNotPublish errorDict: [String : NSNumber]) {
@@ -270,7 +217,6 @@ extension MacMouseServer: NetServiceDelegate {
     }
 
     func netServiceWillPublish(_ sender: NetService) {
-        print("Bonjour service will publish: \(sender.name)")
     }
 }
 

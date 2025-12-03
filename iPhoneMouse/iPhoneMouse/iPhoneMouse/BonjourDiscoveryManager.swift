@@ -39,23 +39,17 @@ class BonjourDiscoveryManager: NSObject, ObservableObject {
 
         discoveredServices = []
 
-        // Create browser and start searching - this will trigger Local Network permission
-        // Must be called synchronously to trigger permission dialog
         browser = NetServiceBrowser()
         browser?.delegate = self
 
-        // Update status first
         DispatchQueue.main.async {
             self.status = .starting
             self.isDiscovering = true
             self.connectionError = nil
         }
 
-        // Start searching immediately - this triggers the permission request
-        // Note: If permission is denied, you'll get error -72008
         browser?.searchForServices(ofType: serviceType, inDomain: serviceDomain)
 
-        // Update status after starting
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             if self.status == .starting {
                 self.status = .discovering
@@ -87,8 +81,6 @@ class BonjourDiscoveryManager: NSObject, ObservableObject {
 
         netService.resolve(withTimeout: 5.0)
 
-        // The connection will be established in didResolveAddress
-        // For now, we'll create a connection using the service info
         let host = NWEndpoint.Host(service.hostName)
         let port = NWEndpoint.Port(integerLiteral: UInt16(service.port))
         let endpoint = NWEndpoint.hostPort(host: host, port: port)
@@ -148,7 +140,6 @@ class BonjourDiscoveryManager: NSObject, ObservableObject {
     }
 
     func reconnect() {
-        // Allow restarting after disconnect
         if status == .stopped {
             startDiscovery()
         }
@@ -172,7 +163,6 @@ extension BonjourDiscoveryManager: NetServiceBrowserDelegate {
     }
 
     func netServiceBrowser(_ browser: NetServiceBrowser, didNotSearch error: Error) {
-        // Error -72008 typically means Local Network permission is denied
         let nsError = error as NSError
         var errorMessage = error.localizedDescription
 
@@ -203,7 +193,6 @@ extension BonjourDiscoveryManager: NetServiceDelegate {
         guard let addresses = sender.addresses,
               !addresses.isEmpty else { return }
 
-        // Parse the first IPv4 address
         for addressData in addresses {
             var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
             let success = addressData.withUnsafeBytes { bytes in
