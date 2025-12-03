@@ -67,6 +67,7 @@ class MultipeerManager: NSObject, ObservableObject {
     }
 
     func connect(to peer: DiscoveredPeer) {
+        // Ensure session and browser exist
         if session == nil || browser == nil {
             if status == .stopped {
                 startBrowsing()
@@ -79,6 +80,7 @@ class MultipeerManager: NSObject, ObservableObject {
 
         guard let session = session, let browser = browser else { return }
 
+        // Check if already connected to this peer
         if session.connectedPeers.contains(where: { $0.displayName == peer.peerID.displayName }) {
             DispatchQueue.main.async {
                 self.isConnected = true
@@ -87,14 +89,17 @@ class MultipeerManager: NSObject, ObservableObject {
             return
         }
 
+        // Disconnect any existing peers first
         if !session.connectedPeers.isEmpty {
             session.disconnect()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            // Wait a moment for disconnect to complete before inviting new peer
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 if let session = self.session, let browser = self.browser {
                     browser.invitePeer(peer.peerID, to: session, withContext: nil, timeout: 30)
                 }
             }
         } else {
+            // No existing connections, invite immediately
             browser.invitePeer(peer.peerID, to: session, withContext: nil, timeout: 30)
         }
     }
@@ -117,14 +122,14 @@ class MultipeerManager: NSObject, ObservableObject {
     }
 
     func disconnect() {
-        browser?.stopBrowsingForPeers()
         session?.disconnect()
-        browser = nil
 
         DispatchQueue.main.async {
             self.isConnected = false
-            self.status = .stopped
-            self.isBrowsing = false
+            // Keep browsing active so we can reconnect
+            if self.status == .connected {
+                self.status = .browsing
+            }
         }
     }
 
@@ -145,11 +150,12 @@ extension MultipeerManager: MCSessionDelegate {
                 self.status = .connected
                 self.connectionError = nil
             case .connecting:
-                if self.status != .browsing {
-                    self.status = .browsing
-                }
+                // Keep browsing status while connecting
+                break
             case .notConnected:
                 self.isConnected = false
+                // Only change status if we were connected
+                // If we're still browsing, keep that status
                 if self.status == .connected {
                     self.status = .browsing
                 }

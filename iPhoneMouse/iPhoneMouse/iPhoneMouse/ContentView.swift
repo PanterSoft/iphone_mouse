@@ -5,12 +5,13 @@ struct ContentView: View {
     @StateObject private var motionController = MotionController()
     @StateObject private var bluetoothManager = BluetoothManager()
     @StateObject private var multipeerManager = MultipeerManager()
-    @StateObject private var bonjourManager = BonjourDiscoveryManager()
 
     @State private var isConnected: Bool = false
     @State private var discoveryTimeout: Bool = false
     @State private var selectedDevice: Any? = nil
     @State private var intendedConnectionMethod: ConnectionMethod? = nil
+    @State private var showSettings: Bool = false
+    @ObservedObject private var settings = SettingsManager.shared
 
     private let discoveryTimeoutSeconds: TimeInterval = 15
 
@@ -22,12 +23,29 @@ struct ContentView: View {
                 connectedView
             }
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(motionController: motionController)
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showSettings = true
+                }) {
+                    Image(systemName: "gearshape.fill")
+                }
+            }
+        }
         .task {
             startDiscovery()
         }
         .onAppear {
             if !isConnected {
                 startDiscovery()
+            }
+        }
+        .onChange(of: settings.sensorType) { _, _ in
+            if isConnected {
+                motionController.updateSensorType()
             }
         }
         .onChange(of: isConnected) { oldValue, newValue in
@@ -47,76 +65,39 @@ struct ContentView: View {
                 handleConnection(method: .multipeer)
             }
         }
-        .onChange(of: bonjourManager.isConnected) { oldValue, newValue in
-            if newValue && intendedConnectionMethod == .bonjour {
-                handleConnection(method: .bonjour)
-            }
-        }
     }
 
     private var discoveryView: some View {
         VStack(spacing: 20) {
-            Text("iPhone Mouse")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+            HStack {
+                Text("iPhone Mouse")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                Spacer()
+                Button(action: {
+                    showSettings = true
+                }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.title2)
+                }
+            }
+            .padding(.horizontal)
 
             Text("Searching for Mac...")
                 .font(.headline)
                 .foregroundColor(.secondary)
 
-            Text("Using Wi-Fi Direct, Bluetooth, and Wi-Fi")
+            Text("Using Wi-Fi Direct and Bluetooth")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
             VStack(alignment: .leading, spacing: 10) {
                 statusRow(title: "Wi-Fi Direct", status: multipeerManager.status)
                 statusRow(title: "Bluetooth", status: bluetoothManager.status)
-                statusRow(title: "Wi-Fi (Bonjour)", status: bonjourManager.status)
             }
             .padding(.horizontal)
 
             // Show specific error messages if any
-            if let bonjourStatus = bonjourManager.status as? BonjourDiscoveryManager.ConnectionStatus,
-               case .error(let msg) = bonjourStatus, msg.contains("Local Network") {
-                VStack(spacing: 8) {
-                    Text("⚠️ Local Network Permission Needed")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.orange)
-
-                    Text("iOS doesn't always show a permission dialog for Local Network access. Please enable it manually:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-
-                    Button(action: {
-                        if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(settingsUrl)
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "gear")
-                            Text("Open Settings")
-                        }
-                        .font(.subheadline)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(Color.blue)
-                        .cornerRadius(8)
-                    }
-
-                    Text("Then go to: Privacy & Security > Local Network > iPhone Mouse")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(10)
-                .padding(.horizontal)
-            }
             if let multipeerStatus = multipeerManager.status as? MultipeerManager.ConnectionStatus,
                case .error(let msg) = multipeerStatus, msg.contains("Local Network") {
                 VStack(spacing: 8) {
@@ -171,12 +152,10 @@ struct ContentView: View {
 
                     VStack(alignment: .leading, spacing: 5) {
                         Text("• Mac server is running")
-                        Text("• Both devices are on the same Wi-Fi network")
-                        Text("• Firewall allows Bonjour/mDNS")
-                        Text("• Local Network permission granted")
+                        Text("• Both devices have Bluetooth enabled")
+                        Text("• Local Network permission granted (for Wi-Fi Direct)")
                         Text("  Go to: Settings > Privacy & Security > Local Network")
                         Text("  Find 'iPhone Mouse' and enable it")
-                        Text("  (If not listed, restart the app after granting permission)")
                     }
                     .font(.caption)
                     .foregroundColor(.red)
@@ -225,48 +204,68 @@ struct ContentView: View {
     }
 
     private var connectedView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "hand.point.up.left.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.green)
-
-            Text("Connected")
-                .font(.title)
-                .fontWeight(.bold)
-
-            Text("Move your iPhone to control the mouse")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-
-            Button(action: {
-                motionController.resetReference()
-            }) {
-                Text("Reset Position")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.orange)
-                    .cornerRadius(10)
+        ZStack {
+            if settings.sensorType == .arkit && settings.showARVisualization {
+                ARVisualizationViewWrapper(motionController: motionController)
             }
-            .padding(.horizontal)
 
-            Button(action: {
-                disconnect()
-            }) {
-                Text("Disconnect")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.red)
-                    .cornerRadius(10)
+            VStack(spacing: 20) {
+                if !(settings.sensorType == .arkit && settings.showARVisualization) {
+                    Image(systemName: "hand.point.up.left.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.green)
+
+                    Text("Connected")
+                        .font(.title)
+                        .fontWeight(.bold)
+
+                    Text(sensorInstructionText)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                Button(action: {
+                    motionController.resetReference()
+                }) {
+                    Text("Reset Position")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.orange)
+                        .cornerRadius(10)
+                }
+                .padding(.horizontal)
+
+                Button(action: {
+                    disconnect()
+                }) {
+                    Text("Disconnect")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.red)
+                        .cornerRadius(10)
+                }
+                .padding(.horizontal)
+                .padding(.top, 10)
             }
-            .padding(.horizontal)
-            .padding(.top, 10)
+            .padding()
+            .background(settings.sensorType == .arkit && settings.showARVisualization ?
+                       Color.black.opacity(0.3) : Color.clear)
+            .cornerRadius(settings.sensorType == .arkit && settings.showARVisualization ? 0 : 10)
         }
-        .padding()
+    }
+
+    private var sensorInstructionText: String {
+        switch settings.sensorType {
+        case .arkit:
+            return "Move your iPhone on the table to control the mouse"
+        case .imu:
+            return "Move your iPhone on the table to control the mouse"
+        }
     }
 
     private func statusRow(title: String, status: Any) -> some View {
@@ -299,15 +298,6 @@ struct ContentView: View {
             case .connected:
                 return .green
             }
-        } else if let bonjourStatus = status as? BonjourDiscoveryManager.ConnectionStatus {
-            switch bonjourStatus {
-            case .stopped, .error:
-                return .gray
-            case .starting, .discovering:
-                return .yellow
-            case .connected:
-                return .green
-            }
         }
         return .gray
     }
@@ -326,14 +316,6 @@ struct ContentView: View {
             case .stopped: return "Stopped"
             case .starting: return "Starting..."
             case .browsing: return "Browsing..."
-            case .connected: return "Connected"
-            case .error(let msg): return "Error: \(msg)"
-            }
-        } else if let bonjourStatus = status as? BonjourDiscoveryManager.ConnectionStatus {
-            switch bonjourStatus {
-            case .stopped: return "Stopped"
-            case .starting: return "Starting..."
-            case .discovering: return "Discovering..."
             case .connected: return "Connected"
             case .error(let msg): return "Error: \(msg)"
             }
@@ -362,8 +344,6 @@ struct ContentView: View {
             return "wave.3.right.circle.fill"
         case .multipeer:
             return "wifi.circle.fill"
-        case .bonjour:
-            return "network"
         }
     }
 
@@ -373,8 +353,6 @@ struct ContentView: View {
             return "Bluetooth"
         case .multipeer:
             return "Wi-Fi Direct"
-        case .bonjour:
-            return "Wi-Fi"
         }
     }
 
@@ -384,8 +362,6 @@ struct ContentView: View {
             return .blue
         case .multipeer:
             return .green
-        case .bonjour:
-            return .orange
         }
     }
 
@@ -410,15 +386,6 @@ struct ContentView: View {
             ))
         }
 
-        for service in bonjourManager.discoveredServices {
-            devices.append(DiscoveredDeviceItem(
-                id: "bonjour-\(service.id)",
-                name: service.name,
-                method: .bonjour,
-                bonjourService: service
-            ))
-        }
-
         return devices
     }
 
@@ -435,11 +402,6 @@ struct ContentView: View {
             multipeerManager.startBrowsing()
         }
 
-        if bonjourManager.status == .stopped {
-            bonjourManager.startDiscovery()
-        } else if case .error = bonjourManager.status {
-            bonjourManager.startDiscovery()
-        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + discoveryTimeoutSeconds) {
             if !isConnected && allDiscoveredDevices.isEmpty {
@@ -460,42 +422,29 @@ struct ContentView: View {
     private func stopAllDiscovery() {
         bluetoothManager.stopScanning()
         multipeerManager.stopBrowsing()
-        bonjourManager.stopDiscovery()
     }
 
     private func connectToDevice(_ device: DiscoveredDeviceItem) {
         intendedConnectionMethod = device.method
 
+        // Disconnect other managers, but preserve the one we're about to use
         switch device.method {
         case .bluetooth:
             if multipeerManager.isConnected {
                 multipeerManager.disconnect()
             }
-            if bonjourManager.isConnected {
-                bonjourManager.disconnect()
-            }
             if bluetoothManager.isConnected {
                 bluetoothManager.disconnect()
             }
+            multipeerManager.stopBrowsing()
         case .multipeer:
             if bluetoothManager.isConnected {
                 bluetoothManager.disconnect()
             }
-            if bonjourManager.isConnected {
-                bonjourManager.disconnect()
-            }
+            bluetoothManager.stopScanning()
+            // If multipeer is already connected, disconnect it first
             if multipeerManager.isConnected {
                 multipeerManager.disconnect()
-            }
-        case .bonjour:
-            if bluetoothManager.isConnected {
-                bluetoothManager.disconnect()
-            }
-            if multipeerManager.isConnected {
-                multipeerManager.disconnect()
-            }
-            if bonjourManager.isConnected {
-                bonjourManager.disconnect()
             }
         }
 
@@ -503,21 +452,7 @@ struct ContentView: View {
         isConnected = false
         discoveryTimeout = false
 
-        switch device.method {
-        case .bluetooth:
-            multipeerManager.stopBrowsing()
-            bonjourManager.stopDiscovery()
-        case .multipeer:
-            bluetoothManager.stopScanning()
-            bonjourManager.stopDiscovery()
-            if multipeerManager.status == .stopped {
-                multipeerManager.startBrowsing()
-            }
-        case .bonjour:
-            bluetoothManager.stopScanning()
-            multipeerManager.stopBrowsing()
-        }
-
+        // Connect using the selected method
         switch device.method {
         case .bluetooth:
             if let bluetoothDevice = device.bluetoothDevice {
@@ -525,6 +460,7 @@ struct ContentView: View {
             }
         case .multipeer:
             if let peer = device.multipeerPeer {
+                // Ensure browsing is active
                 if case .stopped = multipeerManager.status {
                     multipeerManager.startBrowsing()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -536,14 +472,16 @@ struct ContentView: View {
                         self.multipeerManager.connect(to: peer)
                     }
                 } else {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        self.multipeerManager.connect(to: peer)
+                    // If we just disconnected, wait a moment before connecting
+                    if multipeerManager.isConnected == false {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            self.multipeerManager.connect(to: peer)
+                        }
+                    } else {
+                        // Browsing is active and not connected, connect immediately
+                        multipeerManager.connect(to: peer)
                     }
                 }
-            }
-        case .bonjour:
-            if let service = device.bonjourService {
-                bonjourManager.connect(to: service)
             }
         }
     }
@@ -555,8 +493,6 @@ struct ContentView: View {
                 bluetoothManager.disconnect()
             case .multipeer:
                 multipeerManager.disconnect()
-            case .bonjour:
-                bonjourManager.disconnect()
             }
             return
         }
@@ -566,7 +502,6 @@ struct ContentView: View {
 
         motionController.bluetoothManager = method == .bluetooth ? bluetoothManager : nil
         motionController.multipeerManager = method == .multipeer ? multipeerManager : nil
-        motionController.bonjourManager = method == .bonjour ? bonjourManager : nil
 
         motionController.startMotionUpdates()
     }
@@ -575,7 +510,6 @@ struct ContentView: View {
         stopAllDiscovery()
         bluetoothManager.disconnect()
         multipeerManager.disconnect()
-        bonjourManager.disconnect()
 
         motionController.stopMotionUpdates()
         isConnected = false
@@ -586,7 +520,6 @@ struct ContentView: View {
     enum ConnectionMethod {
         case bluetooth
         case multipeer
-        case bonjour
     }
 
     struct DiscoveredDeviceItem: Identifiable {
@@ -595,15 +528,13 @@ struct ContentView: View {
         let method: ConnectionMethod
         let bluetoothDevice: BluetoothManager.DiscoveredDevice?
         let multipeerPeer: MultipeerManager.DiscoveredPeer?
-        let bonjourService: BonjourDiscoveryManager.DiscoveredService?
 
-        init(id: String, name: String, method: ConnectionMethod, bluetoothDevice: BluetoothManager.DiscoveredDevice? = nil, multipeerPeer: MultipeerManager.DiscoveredPeer? = nil, bonjourService: BonjourDiscoveryManager.DiscoveredService? = nil) {
+        init(id: String, name: String, method: ConnectionMethod, bluetoothDevice: BluetoothManager.DiscoveredDevice? = nil, multipeerPeer: MultipeerManager.DiscoveredPeer? = nil) {
             self.id = id
             self.name = name
             self.method = method
             self.bluetoothDevice = bluetoothDevice
             self.multipeerPeer = multipeerPeer
-            self.bonjourService = bonjourService
         }
     }
 }

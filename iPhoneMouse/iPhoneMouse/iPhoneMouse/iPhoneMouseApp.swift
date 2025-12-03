@@ -4,7 +4,9 @@ import SwiftUI
 struct iPhoneMouseApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            NavigationView {
+                ContentView()
+            }
         }
     }
 }

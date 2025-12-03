@@ -44,6 +44,8 @@
 	<string>This app needs Bluetooth access to discover and connect to your Mac for mouse control.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>This app needs access to your local network to discover and connect to your Mac for mouse control.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to track device movement on surfaces for mouse control.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_iphonemouse._tcp</string>
