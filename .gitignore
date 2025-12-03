@@ -1,3 +1,23 @@
 .DS_Store
 MacMouseServer/.build/*
-iPhoneMouse/iPhoneMouse
+
+# Xcode build artifacts
+iPhoneMouse/**/build/
+iPhoneMouse/**/*.xcworkspace/xcuserdata/
+iPhoneMouse/**/*.xcodeproj/xcuserdata/
+iPhoneMouse/**/*.xcodeproj/project.xcworkspace/xcuserdata/
+iPhoneMouse/**/DerivedData/
+iPhoneMouse/**/*.hmap
+iPhoneMouse/**/*.ipa
+iPhoneMouse/**/*.dSYM.zip
+iPhoneMouse/**/*.dSYM
+
+# Swift Package Manager
+iPhoneMouse/**/.swiftpm/
+iPhoneMouse/**/Package.resolved
+
+# Xcode
+iPhoneMouse/**/*.xcuserstate
+iPhoneMouse/**/*.xcscmblueprint
+iPhoneMouse/**/*.xccheckout
+iPhoneMouse/**/.swiftpm/
