@@ -7,6 +7,7 @@ class MultipeerMouseServer: NSObject {
     private var advertiser: MCNearbyServiceAdvertiser?
     private let serviceType = "iphonemouse"
     private var myPeerID: MCPeerID
+    private static var activeServer: MultipeerMouseServer?
 
     override init() {
         let hostname = Host.current().name ?? "Mac Mouse Server"
@@ -46,19 +47,11 @@ class MultipeerMouseServer: NSObject {
     }
 
     private func moveMouse(deltaX: Double, deltaY: Double) {
-        DispatchQueue.main.async {
-            let currentLocation = NSEvent.mouseLocation
-            let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        // Only process if this is the active server
+        guard MultipeerMouseServer.activeServer === self else { return }
 
-            let newX = currentLocation.x + deltaX
-            let newY = currentLocation.y - deltaY
-
-            let clampedX = max(screenFrame.minX, min(screenFrame.maxX, newX))
-            let clampedY = max(screenFrame.minY, min(screenFrame.maxY, newY))
-
-            let moveEvent = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: CGPoint(x: clampedX, y: clampedY), mouseButton: .left)
-            moveEvent?.post(tap: .cghidEventTap)
-        }
+        // Add raw movement data to smoother (Mac handles all smoothing/interpolation)
+        MouseMovementSmoother.shared.addMovement(deltaX: deltaX, deltaY: deltaY)
     }
 }
 
@@ -67,17 +60,28 @@ extension MultipeerMouseServer: MCSessionDelegate {
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         switch state {
         case .connected:
+            MultipeerMouseServer.activeServer = self
             print("✅ iPhone connected via Wi-Fi Direct")
         case .connecting:
             break
         case .notConnected:
-            print("❌ iPhone disconnected (Wi-Fi Direct)")
+            let wasActive = MultipeerMouseServer.activeServer === self
+            if wasActive {
+                MultipeerMouseServer.activeServer = nil
+                print("❌ iPhone disconnected (Wi-Fi Direct)")
+            }
         @unknown default:
             break
         }
     }
 
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
+        // Only process if this is the active server or no server is active yet
+        if MultipeerMouseServer.activeServer == nil {
+            MultipeerMouseServer.activeServer = self
+        }
+        guard MultipeerMouseServer.activeServer === self else { return }
+
         if let message = String(data: data, encoding: .utf8) {
             processMessage(message)
         }

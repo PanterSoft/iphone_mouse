@@ -18,6 +18,17 @@ class MotionController: NSObject, ObservableObject {
     private var lastUpdateTime: Date?
     private var imuReference: CMAttitude?
     private var imuCalibrationOffset: (roll: Double, pitch: Double) = (0, 0)
+    @Published var isCalibrated: Bool = false
+
+    // Smoothing filter (exponential moving average)
+    private var smoothedDeltaX: Double = 0.0
+    private var smoothedDeltaY: Double = 0.0
+    private let smoothingFactor: Double = 0.7  // 0.0 = no smoothing, 1.0 = full smoothing
+
+    // Controller mode
+    private var controllerTimer: Timer?
+    private var controllerDirection: (x: Int, y: Int) = (0, 0)
+    private let controllerSpeed: Double = 5.0  // pixels per update
 
     weak var bluetoothManager: BluetoothManager?
     weak var multipeerManager: MultipeerManager?
@@ -34,13 +45,19 @@ class MotionController: NSObject, ObservableObject {
     }
 
     func startMotionUpdates() {
-        let sensorType = SettingsManager.shared.sensorType
+        let controlMode = SettingsManager.shared.controlMode
 
-        switch sensorType {
-        case .arkit:
-            startARKit()
-        case .imu:
-            startIMU()
+        switch controlMode {
+        case .motion:
+            let sensorType = SettingsManager.shared.sensorType
+            switch sensorType {
+            case .arkit:
+                startARKit()
+            case .imu:
+                startIMU()
+            }
+        case .controller:
+            startControllerMode()
         }
     }
 
@@ -90,9 +107,19 @@ class MotionController: NSObject, ObservableObject {
         timer?.invalidate()
         timer = nil
         motionManager = nil
+
+        controllerTimer?.invalidate()
+        controllerTimer = nil
+        controllerDirection = (0, 0)
+
         velocityX = 0.0
         velocityY = 0.0
         lastUpdateTime = nil
+        isCalibrated = false
+        imuReference = nil
+        imuCalibrationOffset = (0, 0)
+        smoothedDeltaX = 0.0
+        smoothedDeltaY = 0.0
     }
 
     func resetReference() {
@@ -107,9 +134,17 @@ class MotionController: NSObject, ObservableObject {
             return
         }
 
+        // Store reference attitude for calibration
         let attitude = deviceMotion.attitude
         imuReference = attitude.copy() as? CMAttitude
         imuCalibrationOffset = (attitude.roll, attitude.pitch)
+
+        // Reset velocities when calibrating
+        velocityX = 0.0
+        velocityY = 0.0
+
+        // Mark as calibrated (session-only, not persisted)
+        isCalibrated = true
     }
 
     func updateSensorType() {
@@ -139,8 +174,30 @@ class MotionController: NSObject, ObservableObject {
         guard deltaTime > 0 else { return }
 
         let userAcceleration = deviceMotion.userAcceleration
-        let accelX = userAcceleration.x
-        let accelY = userAcceleration.y
+        var accelX = userAcceleration.x
+        var accelY = userAcceleration.y
+
+        // Apply calibration offset if calibrated
+        // The offset accounts for phone case tilt and uneven surfaces
+        if let reference = imuReference {
+            // Get current attitude
+            let currentAttitude = deviceMotion.attitude
+
+            // Calculate relative attitude change from calibration reference
+            // This gives us the change in orientation since calibration
+            let relativeAttitude = currentAttitude.copy() as! CMAttitude
+            relativeAttitude.multiply(byInverseOf: reference)
+
+            // Get the roll and pitch differences from calibration
+            let rollDiff = relativeAttitude.roll
+            let pitchDiff = relativeAttitude.pitch
+
+            // Compensate for static tilt: if phone is tilted, gravity affects acceleration
+            // Subtract the tilt component to get pure movement acceleration
+            // The sin() of the angle gives us the gravity component in that axis
+            accelX -= sin(rollDiff) * 0.15  // Compensate for roll tilt
+            accelY -= sin(pitchDiff) * 0.15  // Compensate for pitch tilt
+        }
 
         if abs(accelX) < minAcceleration && abs(accelY) < minAcceleration {
             velocityX *= damping
@@ -158,13 +215,34 @@ class MotionController: NSObject, ObservableObject {
     }
 
     private func sendMovement(deltaX: Double, deltaY: Double) {
-        if abs(deltaX) > minMovement || abs(deltaY) > minMovement {
-            if let bluetoothManager = bluetoothManager, bluetoothManager.isConnected {
-                bluetoothManager.sendMovement(deltaX: deltaX, deltaY: deltaY)
-            } else if let multipeerManager = multipeerManager, multipeerManager.isConnected {
-                multipeerManager.sendMovement(deltaX: deltaX, deltaY: deltaY)
-            }
+        // Send raw movement data - Mac will handle all smoothing/interpolation
+        if let bluetoothManager = bluetoothManager, bluetoothManager.isConnected {
+            bluetoothManager.sendMovement(deltaX: deltaX, deltaY: deltaY)
+        } else if let multipeerManager = multipeerManager, multipeerManager.isConnected {
+            multipeerManager.sendMovement(deltaX: deltaX, deltaY: deltaY)
         }
+    }
+
+    // MARK: - Controller Mode
+    private func startControllerMode() {
+        stopMotionUpdates()
+
+        controllerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            self?.processControllerMovement()
+        }
+    }
+
+    private func processControllerMovement() {
+        guard controllerDirection.x != 0 || controllerDirection.y != 0 else { return }
+
+        let deltaX = Double(controllerDirection.x) * controllerSpeed
+        let deltaY = Double(controllerDirection.y) * controllerSpeed
+
+        sendMovement(deltaX: deltaX, deltaY: deltaY)
+    }
+
+    func setControllerDirection(x: Int, y: Int) {
+        controllerDirection = (x, y)
     }
 }
 

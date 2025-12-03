@@ -15,6 +15,20 @@ enum SensorType: String, CaseIterable {
     }
 }
 
+enum ControlMode: String, CaseIterable {
+    case motion = "Motion Control"
+    case controller = "Controller (D-Pad)"
+
+    var description: String {
+        switch self {
+        case .motion:
+            return "Control mouse by moving your iPhone"
+        case .controller:
+            return "Control mouse with on-screen buttons"
+        }
+    }
+}
+
 class SettingsManager: ObservableObject {
     static let shared = SettingsManager()
 
@@ -36,9 +50,15 @@ class SettingsManager: ObservableObject {
         }
     }
 
-    @Published var imuCalibrated: Bool {
+    @Published var controlMode: ControlMode {
         didSet {
-            UserDefaults.standard.set(imuCalibrated, forKey: "imuCalibrated")
+            UserDefaults.standard.set(controlMode.rawValue, forKey: "controlMode")
+        }
+    }
+
+    @Published var smoothingEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(smoothingEnabled, forKey: "smoothingEnabled")
         }
     }
 
@@ -53,6 +73,19 @@ class SettingsManager: ObservableObject {
         self.showARVisualization = UserDefaults.standard.bool(forKey: "showARVisualization")
         self.sensitivity = UserDefaults.standard.double(forKey: "sensitivity") != 0 ?
             UserDefaults.standard.double(forKey: "sensitivity") : 5000.0
-        self.imuCalibrated = UserDefaults.standard.bool(forKey: "imuCalibrated")
+
+        if let savedControlMode = UserDefaults.standard.string(forKey: "controlMode"),
+           let mode = ControlMode(rawValue: savedControlMode) {
+            self.controlMode = mode
+        } else {
+            self.controlMode = .motion
+        }
+
+        self.smoothingEnabled = UserDefaults.standard.bool(forKey: "smoothingEnabled")
+        if !UserDefaults.standard.bool(forKey: "smoothingEnabledSet") {
+            // Default to enabled for new users
+            self.smoothingEnabled = true
+            UserDefaults.standard.set(true, forKey: "smoothingEnabledSet")
+        }
     }
 }

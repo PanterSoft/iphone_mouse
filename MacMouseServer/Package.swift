@@ -9,7 +9,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "MacMouseServer",
-            dependencies: []
+            dependencies: [],
+            exclude: ["Info.plist"]
         )
     ]
 )

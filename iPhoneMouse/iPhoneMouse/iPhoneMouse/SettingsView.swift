@@ -8,61 +8,69 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Sensor Type")) {
-                    ForEach(SensorType.allCases, id: \.self) { sensor in
+                Section(header: Text("Control Mode")) {
+                    ForEach(ControlMode.allCases, id: \.self) { mode in
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(sensor.rawValue)
+                                Text(mode.rawValue)
                                     .font(.body)
-                                Text(sensor.description)
+                                Text(mode.description)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                             Spacer()
-                            if settings.sensorType == sensor {
+                            if settings.controlMode == mode {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.blue)
                             }
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            settings.sensorType = sensor
+                            settings.controlMode = mode
                             motionController.updateSensorType()
                         }
                     }
                 }
 
-                if settings.sensorType == .arkit {
-                    Section(header: Text("ARKit Options")) {
-                        Toggle("Show Camera/LiDAR View", isOn: $settings.showARVisualization)
-                            .onChange(of: settings.showARVisualization) { _ in
-                                motionController.updateVisualization()
+                if settings.controlMode == .motion {
+                    Section(header: Text("Sensor Type")) {
+                        ForEach(SensorType.allCases, id: \.self) { sensor in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(sensor.rawValue)
+                                        .font(.body)
+                                    Text(sensor.description)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                if settings.sensorType == sensor {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
                             }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                settings.sensorType = sensor
+                                motionController.updateSensorType()
+                            }
+                        }
                     }
                 }
 
-                if settings.sensorType == .imu {
-                    Section(header: Text("IMU Calibration")) {
-                        if settings.imuCalibrated {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text("Calibrated")
-                                    .foregroundColor(.secondary)
-                            }
+                if settings.controlMode == .motion {
+                    if settings.sensorType == .arkit {
+                        Section(header: Text("ARKit Options")) {
+                            Toggle("Show Camera/LiDAR View", isOn: $settings.showARVisualization)
+                                .onChange(of: settings.showARVisualization) { _ in
+                                    motionController.updateVisualization()
+                                }
                         }
+                    }
 
-                        Button(action: {
-                            motionController.calibrateIMU()
-                            settings.imuCalibrated = true
-                        }) {
-                            HStack {
-                                Image(systemName: "target")
-                                Text("Calibrate Zero Position")
-                            }
-                        }
-
-                        Text("Place your iPhone on the surface and tap to calibrate. This accounts for phone cases and uneven surfaces.")
+                    Section(header: Text("Motion Smoothing")) {
+                        Toggle("Enable Smoothing", isOn: $settings.smoothingEnabled)
+                        Text("Reduces jitter and flickering in mouse movement")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

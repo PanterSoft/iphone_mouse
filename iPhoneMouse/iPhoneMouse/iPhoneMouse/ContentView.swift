@@ -48,6 +48,11 @@ struct ContentView: View {
                 motionController.updateSensorType()
             }
         }
+        .onChange(of: settings.controlMode) { _, _ in
+            if isConnected {
+                motionController.updateSensorType()
+            }
+        }
         .onChange(of: isConnected) { oldValue, newValue in
             if oldValue == true && newValue == false && intendedConnectionMethod == nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -192,12 +197,32 @@ struct ContentView: View {
                             Text(device.name)
                                 .foregroundColor(.primary)
                             Spacer()
-                            protocolBadge(for: device.method)
+
+                            // Show loading indicator if connecting to this device
+                            if device.method == .multipeer && multipeerManager.isConnecting {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                protocolBadge(for: device.method)
+                            }
                         }
                         .padding(.vertical, 8)
                     }
+                    .disabled(device.method == .multipeer && multipeerManager.isConnecting)
                 }
                 .frame(maxHeight: 200)
+            }
+
+            // Show connection status message
+            if multipeerManager.isConnecting {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    Text("Connecting to Mac...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
             }
         }
         .padding()
@@ -205,38 +230,63 @@ struct ContentView: View {
 
     private var connectedView: some View {
         ZStack {
-            if settings.sensorType == .arkit && settings.showARVisualization {
+            if settings.controlMode == .motion && settings.sensorType == .arkit && settings.showARVisualization {
                 ARVisualizationViewWrapper(motionController: motionController)
             }
 
             VStack(spacing: 20) {
-                if !(settings.sensorType == .arkit && settings.showARVisualization) {
-                    Image(systemName: "hand.point.up.left.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(.green)
+                if settings.controlMode == .controller {
+                    ControllerView(motionController: motionController)
+                } else {
+                    if !(settings.sensorType == .arkit && settings.showARVisualization) {
+                        Image(systemName: "hand.point.up.left.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.green)
 
-                    Text("Connected")
-                        .font(.title)
-                        .fontWeight(.bold)
+                        Text("Connected")
+                            .font(.title)
+                            .fontWeight(.bold)
 
-                    Text(sensorInstructionText)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+                        Text(sensorInstructionText)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
 
-                Button(action: {
-                    motionController.resetReference()
-                }) {
-                    Text("Reset Position")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.orange)
-                        .cornerRadius(10)
+                if settings.controlMode == .motion {
+                    // Quick calibration button for IMU (appears when connected, disappears after calibration)
+                    if settings.sensorType == .imu && !motionController.isCalibrated {
+                        Button(action: {
+                            motionController.calibrateIMU()
+                        }) {
+                            HStack {
+                                Image(systemName: "target")
+                                Text("Calibrate Zero Position")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .cornerRadius(10)
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    Button(action: {
+                        motionController.resetReference()
+                    }) {
+                        Text("Reset Position")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.orange)
+                            .cornerRadius(10)
+                    }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
 
                 Button(action: {
                     disconnect()
@@ -253,9 +303,9 @@ struct ContentView: View {
                 .padding(.top, 10)
             }
             .padding()
-            .background(settings.sensorType == .arkit && settings.showARVisualization ?
+            .background(settings.controlMode == .motion && settings.sensorType == .arkit && settings.showARVisualization ?
                        Color.black.opacity(0.3) : Color.clear)
-            .cornerRadius(settings.sensorType == .arkit && settings.showARVisualization ? 0 : 10)
+            .cornerRadius(settings.controlMode == .motion && settings.sensorType == .arkit && settings.showARVisualization ? 0 : 10)
         }
     }
 
@@ -295,6 +345,8 @@ struct ContentView: View {
                 return .gray
             case .starting, .browsing:
                 return .yellow
+            case .connecting:
+                return .orange
             case .connected:
                 return .green
             }
@@ -316,6 +368,7 @@ struct ContentView: View {
             case .stopped: return "Stopped"
             case .starting: return "Starting..."
             case .browsing: return "Browsing..."
+            case .connecting: return "Connecting..."
             case .connected: return "Connected"
             case .error(let msg): return "Error: \(msg)"
             }
@@ -460,6 +513,11 @@ struct ContentView: View {
             }
         case .multipeer:
             if let peer = device.multipeerPeer {
+                // Don't attempt connection if already connecting
+                if multipeerManager.isConnecting {
+                    return
+                }
+
                 // Ensure browsing is active
                 if case .stopped = multipeerManager.status {
                     multipeerManager.startBrowsing()
@@ -473,11 +531,11 @@ struct ContentView: View {
                     }
                 } else {
                     // If we just disconnected, wait a moment before connecting
-                    if multipeerManager.isConnected == false {
+                    if multipeerManager.isConnected == false && !multipeerManager.isConnecting {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             self.multipeerManager.connect(to: peer)
                         }
-                    } else {
+                    } else if !multipeerManager.isConnecting {
                         // Browsing is active and not connected, connect immediately
                         multipeerManager.connect(to: peer)
                     }

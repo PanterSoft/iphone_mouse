@@ -6,6 +6,7 @@ import UIKit
 class MultipeerManager: NSObject, ObservableObject {
     @Published var isConnected: Bool = false
     @Published var isBrowsing: Bool = false
+    @Published var isConnecting: Bool = false
     @Published var discoveredDevices: [DiscoveredPeer] = []
     @Published var connectionError: String?
     @Published var status: ConnectionStatus = .stopped
@@ -14,9 +15,13 @@ class MultipeerManager: NSObject, ObservableObject {
         case stopped
         case starting
         case browsing
+        case connecting
         case connected
         case error(String)
     }
+
+    private var connectionTimeoutTimer: Timer?
+    private let connectionTimeout: TimeInterval = 15.0
 
     struct DiscoveredPeer: Identifiable {
         let id: String
@@ -67,6 +72,9 @@ class MultipeerManager: NSObject, ObservableObject {
     }
 
     func connect(to peer: DiscoveredPeer) {
+        // Cancel any existing connection attempt
+        cancelConnectionTimeout()
+
         // Ensure session and browser exist
         if session == nil || browser == nil {
             if status == .stopped {
@@ -84,10 +92,21 @@ class MultipeerManager: NSObject, ObservableObject {
         if session.connectedPeers.contains(where: { $0.displayName == peer.peerID.displayName }) {
             DispatchQueue.main.async {
                 self.isConnected = true
+                self.isConnecting = false
                 self.status = .connected
             }
             return
         }
+
+        // Set connecting state
+        DispatchQueue.main.async {
+            self.isConnecting = true
+            self.status = .connecting
+            self.connectionError = nil
+        }
+
+        // Start connection timeout
+        startConnectionTimeout()
 
         // Disconnect any existing peers first
         if !session.connectedPeers.isEmpty {
@@ -102,6 +121,25 @@ class MultipeerManager: NSObject, ObservableObject {
             // No existing connections, invite immediately
             browser.invitePeer(peer.peerID, to: session, withContext: nil, timeout: 30)
         }
+    }
+
+    private func startConnectionTimeout() {
+        cancelConnectionTimeout()
+        connectionTimeoutTimer = Timer.scheduledTimer(withTimeInterval: connectionTimeout, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            if self.isConnecting && !self.isConnected {
+                DispatchQueue.main.async {
+                    self.isConnecting = false
+                    self.status = .browsing
+                    self.connectionError = "Connection timeout. Please try again."
+                }
+            }
+        }
+    }
+
+    private func cancelConnectionTimeout() {
+        connectionTimeoutTimer?.invalidate()
+        connectionTimeoutTimer = nil
     }
 
     func sendMovement(deltaX: Double, deltaY: Double) {
@@ -122,12 +160,14 @@ class MultipeerManager: NSObject, ObservableObject {
     }
 
     func disconnect() {
+        cancelConnectionTimeout()
         session?.disconnect()
 
         DispatchQueue.main.async {
             self.isConnected = false
+            self.isConnecting = false
             // Keep browsing active so we can reconnect
-            if self.status == .connected {
+            if self.status == .connected || self.status == .connecting {
                 self.status = .browsing
             }
         }
@@ -146,18 +186,29 @@ extension MultipeerManager: MCSessionDelegate {
         DispatchQueue.main.async {
             switch state {
             case .connected:
+                self.cancelConnectionTimeout()
                 self.isConnected = true
+                self.isConnecting = false
                 self.status = .connected
                 self.connectionError = nil
+                print("✅ Multipeer connection established")
             case .connecting:
-                // Keep browsing status while connecting
-                break
+                self.isConnecting = true
+                self.status = .connecting
+                print("🔄 Multipeer connecting...")
             case .notConnected:
+                let wasConnecting = self.isConnecting
+                let wasConnected = self.isConnected
+                self.cancelConnectionTimeout()
                 self.isConnected = false
-                // Only change status if we were connected
+                self.isConnecting = false
+                // Only change status if we were connected or connecting
                 // If we're still browsing, keep that status
-                if self.status == .connected {
+                if wasConnected || wasConnecting {
                     self.status = .browsing
+                    if wasConnecting {
+                        self.connectionError = "Connection failed. Please try again."
+                    }
                 }
             @unknown default:
                 break

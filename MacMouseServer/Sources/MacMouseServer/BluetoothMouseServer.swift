@@ -6,6 +6,7 @@ class BluetoothMouseServer: NSObject, CBPeripheralManagerDelegate {
     private var peripheralManager: CBPeripheralManager!
     private var characteristic: CBMutableCharacteristic?
     private var connectedCentral: CBCentral?
+    private static var activeServer: BluetoothMouseServer?
 
     private let serviceUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABC")
     private let characteristicUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABD")
@@ -72,25 +73,30 @@ class BluetoothMouseServer: NSObject, CBPeripheralManagerDelegate {
             CBAdvertisementDataLocalNameKey: "Mac Mouse Server"
         ]
 
-        print("Starting Bluetooth advertising...")
-        print("  Service UUID: \(serviceUUID)")
-        print("  Device name: Mac Mouse Server")
         peripheralManager.startAdvertising(advertisementData)
-        print("✓ Bluetooth service is advertising. iPhone can now discover and connect.")
-        print("  Make sure Bluetooth is enabled on both devices and they are nearby.")
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         connectedCentral = central
+        BluetoothMouseServer.activeServer = self
         print("✅ iPhone connected via Bluetooth")
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
         connectedCentral = nil
+        if BluetoothMouseServer.activeServer === self {
+            BluetoothMouseServer.activeServer = nil
+        }
         print("❌ iPhone disconnected (Bluetooth)")
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
+        // Only process if this is the active server or no server is active yet
+        if BluetoothMouseServer.activeServer == nil {
+            BluetoothMouseServer.activeServer = self
+        }
+        guard BluetoothMouseServer.activeServer === self else { return }
+
         for request in requests {
             guard let data = request.value else { continue }
 
@@ -117,19 +123,11 @@ class BluetoothMouseServer: NSObject, CBPeripheralManagerDelegate {
     }
 
     private func moveMouse(deltaX: Double, deltaY: Double) {
-        DispatchQueue.main.async {
-            let currentLocation = NSEvent.mouseLocation
-            let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        // Only process if this is the active server
+        guard BluetoothMouseServer.activeServer === self else { return }
 
-            let newX = currentLocation.x + deltaX
-            let newY = currentLocation.y - deltaY
-
-            let clampedX = max(screenFrame.minX, min(screenFrame.maxX, newX))
-            let clampedY = max(screenFrame.minY, min(screenFrame.maxY, newY))
-
-            let moveEvent = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: CGPoint(x: clampedX, y: clampedY), mouseButton: .left)
-            moveEvent?.post(tap: .cghidEventTap)
-        }
+        // Add raw movement data to smoother (Mac handles all smoothing/interpolation)
+        MouseMovementSmoother.shared.addMovement(deltaX: deltaX, deltaY: deltaY)
     }
 }
 
