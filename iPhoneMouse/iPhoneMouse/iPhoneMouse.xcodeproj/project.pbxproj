@@ -7,18 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		D977E6E62EE058AC00747954 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
-		D9A00BB22EE05FDC003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
-		D9A00BF52EE06B24003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
-		D9A00C372EE06E0F003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
-		D9A00C7F2EE07161003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
-		D9A00CA42EE07336003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
-		D9A00CF72EE073FE003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
-		D9A00D1E2EE076B5003F8664 /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
 		D9DF30A02EDF47C400511D7A /* iPhoneMouse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iPhoneMouse.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D9DF311E2EDF4CE400511D7A /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
-		D9DF316B2EDF534A00511D7A /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
-		D9DF31B42EDF53B200511D7A /* iPhoneMouse.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = iPhoneMouse.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,62 +29,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		D977E6EA2EE058AC00747954 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9A00BB72EE05FDC003F8664 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9A00BFB2EE06B24003F8664 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9A00C3D2EE06E0F003F8664 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9A00C852EE07161003F8664 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9A00CAA2EE07336003F8664 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9A00CFD2EE073FE003F8664 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9A00D242EE076B5003F8664 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		D9DF30972EDF47C400511D7A = {
 			isa = PBXGroup;
 			children = (
@@ -108,27 +41,6 @@
 			isa = PBXGroup;
 			children = (
 				D9DF30A02EDF47C400511D7A /* iPhoneMouse.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9DF31222EDF4CE400511D7A /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9DF31702EDF534A00511D7A /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		D9DF31B92EDF53B200511D7A /* Products */ = {
-			isa = PBXGroup;
-			children = (
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -185,52 +97,6 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D9DF30A12EDF47C400511D7A /* Products */;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = D977E6EA2EE058AC00747954 /* Products */;
-					ProjectRef = D977E6E62EE058AC00747954 /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9A00BB72EE05FDC003F8664 /* Products */;
-					ProjectRef = D9A00BB22EE05FDC003F8664 /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9DF31B92EDF53B200511D7A /* Products */;
-					ProjectRef = D9DF31B42EDF53B200511D7A /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9DF31702EDF534A00511D7A /* Products */;
-					ProjectRef = D9DF316B2EDF534A00511D7A /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9A00C852EE07161003F8664 /* Products */;
-					ProjectRef = D9A00C7F2EE07161003F8664 /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9A00BFB2EE06B24003F8664 /* Products */;
-					ProjectRef = D9A00BF52EE06B24003F8664 /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9A00C3D2EE06E0F003F8664 /* Products */;
-					ProjectRef = D9A00C372EE06E0F003F8664 /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9A00CAA2EE07336003F8664 /* Products */;
-					ProjectRef = D9A00CA42EE07336003F8664 /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9A00D242EE076B5003F8664 /* Products */;
-					ProjectRef = D9A00D1E2EE076B5003F8664 /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9A00CFD2EE073FE003F8664 /* Products */;
-					ProjectRef = D9A00CF72EE073FE003F8664 /* iPhoneMouse.xcodeproj */;
-				},
-				{
-					ProductGroup = D9DF31222EDF4CE400511D7A /* Products */;
-					ProjectRef = D9DF311E2EDF4CE400511D7A /* iPhoneMouse.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
 				D9DF309F2EDF47C400511D7A /* iPhoneMouse */,
@@ -385,13 +251,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = iPhoneMouse/iPhoneMouse.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = C4F7T8DA9W;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Info.plist;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -419,13 +283,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = iPhoneMouse/iPhoneMouse.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = C4F7T8DA9W;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Info.plist;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
