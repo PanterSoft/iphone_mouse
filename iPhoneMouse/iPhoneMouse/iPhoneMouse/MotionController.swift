@@ -235,6 +235,9 @@ class MotionController: NSObject, ObservableObject {
     private func processControllerMovement() {
         guard controllerDirection.x != 0 || controllerDirection.y != 0 else { return }
 
+        // Controller: y=1 is up button, y=-1 is down button
+        // We send: up (y=1) → positive deltaY, down (y=-1) → negative deltaY
+        // Mac will invert: positive → negative (up), negative → positive (down)
         let deltaX = Double(controllerDirection.x) * controllerSpeed
         let deltaY = Double(controllerDirection.y) * controllerSpeed
 
@@ -262,10 +265,17 @@ extension MotionController: ARSessionDelegate {
         let deltaTransform = simd_mul(simd_inverse(reference), cameraTransform)
         let translation = deltaTransform.columns.3
 
+        // When phone is flat on table:
+        // X = left-right movement (positive = right)
+        // Z = forward-backward movement (depth along table) → maps to screen Y
+        // ARKit: positive Z = forward (away from camera), negative Z = backward (toward camera)
+        // We want: forward (positive Z) = cursor DOWN (positive Y in macOS)
+        // So: deltaY should be positive when Z is positive
         let deltaX = Double(translation.x) * sensitivity
-        let deltaY = Double(translation.y) * sensitivity
+        let deltaY = Double(-translation.z) * sensitivity  // Invert Z: forward = positive Y = down
 
-        sendMovement(deltaX: deltaX, deltaY: -deltaY)
+        // Send movement (Y will be inverted on Mac side for macOS coordinate system)
+        sendMovement(deltaX: deltaX, deltaY: deltaY)
 
         referenceTransform = cameraTransform
     }

@@ -1,16 +1,33 @@
 import Foundation
 import AppKit
 
-print("🚀 iPhone Mouse Server starting...")
-print("Press Ctrl+C to stop\n")
+// Set to true to run cursor circle test instead of server
+let runCircleTest = false
+// Set to true to show visualization window
+let showVisualization = true
 
-let bluetoothServer = BluetoothMouseServer()
-let multipeerServer = MultipeerMouseServer()
+if runCircleTest {
+    CursorTest.runCircleTest()
+    RunLoop.main.run()
+} else {
+    print("🚀 iPhone Mouse Server starting...")
+    print("Press Ctrl+C to stop\n")
 
-bluetoothServer.start()
-multipeerServer.start()
+    let bluetoothServer = BluetoothMouseServer()
+    let multipeerServer = MultipeerMouseServer()
 
-print("✅ Servers ready - waiting for iPhone connection...\n")
+    bluetoothServer.start()
+    multipeerServer.start()
 
-RunLoop.main.run()
+    print("✅ Servers ready - waiting for iPhone connection...\n")
+
+    // Show visualization window if enabled
+    if showVisualization {
+        let visualizerWindow = MouseDataVisualizerWindowController()
+        visualizerWindow.showWindow(nil)
+        print("📊 Visualization window opened\n")
+    }
+
+    RunLoop.main.run()
+}
 

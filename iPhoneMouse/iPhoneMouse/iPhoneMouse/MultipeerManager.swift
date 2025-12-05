@@ -142,13 +142,13 @@ class MultipeerManager: NSObject, ObservableObject {
         connectionTimeoutTimer = nil
     }
 
-    func sendMovement(deltaX: Double, deltaY: Double) {
+    func sendMovement(deltaX: Double, deltaY: Double, buttons: UInt8 = 0, scroll: Int8 = 0) {
         guard isConnected,
               let session = session,
               !session.connectedPeers.isEmpty else { return }
 
-        let message = "MOVE:\(deltaX),\(deltaY)\n"
-        guard let data = message.data(using: .utf8) else { return }
+        // Use standardized HID mouse report format
+        let data = MouseMovementProtocol.encode(deltaX: deltaX, deltaY: deltaY, buttons: buttons, scroll: scroll)
 
         do {
             try session.send(data, toPeers: session.connectedPeers, with: .reliable)

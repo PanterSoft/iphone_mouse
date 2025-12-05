@@ -32,26 +32,44 @@ class MultipeerMouseServer: NSObject {
         session = nil
     }
 
-    private func processMessage(_ message: String) {
-        let lines = message.components(separatedBy: "\n")
-        for line in lines {
-            if line.hasPrefix("MOVE:") {
-                let components = line.dropFirst(5).components(separatedBy: ",")
-                if components.count == 2,
-                   let deltaX = Double(components[0]),
-                   let deltaY = Double(components[1]) {
-                    moveMouse(deltaX: deltaX, deltaY: deltaY)
-                }
-            }
-        }
-    }
 
-    private func moveMouse(deltaX: Double, deltaY: Double) {
+    private func moveMouse(deltaX: Double, deltaY: Double, buttons: UInt8, scroll: Int8) {
         // Only process if this is the active server
         guard MultipeerMouseServer.activeServer === self else { return }
 
-        // Add raw movement data to smoother (Mac handles all smoothing/interpolation)
-        MouseMovementSmoother.shared.addMovement(deltaX: deltaX, deltaY: deltaY)
+        // Record data for visualization
+        MouseDataCollector.shared.recordData(
+            deltaX: deltaX,
+            deltaY: deltaY,
+            buttons: buttons,
+            scroll: scroll,
+            connectionType: "Wi-Fi Direct"
+        )
+
+        // Directly move cursor with received deltas (no smoothing, no accumulation)
+        DispatchQueue.main.async {
+            MouseMovementSmoother.shared.moveCursor(deltaX: deltaX, deltaY: deltaY)
+        }
+
+        // Handle button clicks (future implementation)
+        if buttons != 0 {
+            handleMouseButtons(buttons)
+        }
+
+        // Handle scroll (future implementation)
+        if scroll != 0 {
+            handleScroll(scroll)
+        }
+    }
+
+    private func handleMouseButtons(_ buttons: UInt8) {
+        // TODO: Implement mouse button clicks
+        // Use CGEvent to post mouse down/up events
+    }
+
+    private func handleScroll(_ scroll: Int8) {
+        // TODO: Implement scroll wheel
+        // Use CGEvent to post scroll events
     }
 }
 
@@ -62,28 +80,30 @@ extension MultipeerMouseServer: MCSessionDelegate {
         case .connected:
             MultipeerMouseServer.activeServer = self
             print("✅ iPhone connected via Wi-Fi Direct")
+            MouseDataCollector.shared.connectionType = "Wi-Fi Direct"
         case .connecting:
             break
         case .notConnected:
-            let wasActive = MultipeerMouseServer.activeServer === self
-            if wasActive {
+            if MultipeerMouseServer.activeServer === self {
                 MultipeerMouseServer.activeServer = nil
-                print("❌ iPhone disconnected (Wi-Fi Direct)")
             }
+            print("❌ iPhone disconnected (Wi-Fi Direct)")
+            MouseDataCollector.shared.connectionType = "Not Connected"
         @unknown default:
             break
         }
     }
 
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
-        // Only process if this is the active server or no server is active yet
+        // Set as active server if not already set
         if MultipeerMouseServer.activeServer == nil {
             MultipeerMouseServer.activeServer = self
         }
         guard MultipeerMouseServer.activeServer === self else { return }
 
-        if let message = String(data: data, encoding: .utf8) {
-            processMessage(message)
+        // Decode HID mouse report format
+        if let (deltaX, deltaY, buttons, scroll) = MouseMovementProtocol.decode(data) {
+            moveMouse(deltaX: deltaX, deltaY: deltaY, buttons: buttons, scroll: scroll)
         }
     }
 
