@@ -20,7 +20,7 @@ class MouseMovementSmoother {
 
         // Protocol says: Positive deltaX = Right, Positive deltaY = Down
         // macOS Core Graphics: Y increases UPWARD (bottom-left origin)
-        // So to move DOWN (positive deltaY), we need to DECREASE Y
+        // Apply deltas directly (signs already corrected on iPhone side)
         let newX = currentLocation.x + deltaX
         let newY = currentLocation.y - deltaY  // Invert Y: down = decrease Y
 

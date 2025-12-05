@@ -13,17 +13,13 @@ class MotionController: NSObject, ObservableObject {
 
     private var motionManager: CMMotionManager?
     private var timer: Timer?
-    private var velocityX: Double = 0.0
-    private var velocityY: Double = 0.0
     private var lastUpdateTime: Date?
     private var imuReference: CMAttitude?
-    private var imuCalibrationOffset: (roll: Double, pitch: Double) = (0, 0)
     @Published var isCalibrated: Bool = false
 
-    // Smoothing filter (exponential moving average)
-    private var smoothedDeltaX: Double = 0.0
-    private var smoothedDeltaY: Double = 0.0
-    private let smoothingFactor: Double = 0.7  // 0.0 = no smoothing, 1.0 = full smoothing
+    // For XY plane mode: track last position to calculate deltas
+    private var lastRoll: Double = 0.0
+    private var lastPitch: Double = 0.0
 
     // Controller mode
     private var controllerTimer: Timer?
@@ -36,9 +32,6 @@ class MotionController: NSObject, ObservableObject {
     private var sensitivity: Double {
         SettingsManager.shared.sensitivity
     }
-    private let minMovement: Double = 0.5
-    private let damping: Double = 0.85
-    private let minAcceleration: Double = 0.01
 
     override init() {
         super.init()
@@ -112,20 +105,23 @@ class MotionController: NSObject, ObservableObject {
         controllerTimer = nil
         controllerDirection = (0, 0)
 
-        velocityX = 0.0
-        velocityY = 0.0
         lastUpdateTime = nil
         isCalibrated = false
         imuReference = nil
-        imuCalibrationOffset = (0, 0)
-        smoothedDeltaX = 0.0
-        smoothedDeltaY = 0.0
+        lastRoll = 0.0
+        lastPitch = 0.0
     }
 
     func resetReference() {
         referenceTransform = nil
-        velocityX = 0.0
-        velocityY = 0.0
+        // Reset IMU reference for XY plane mode
+        if let motionManager = motionManager,
+           let deviceMotion = motionManager.deviceMotion {
+            let attitude = deviceMotion.attitude
+            imuReference = attitude.copy() as? CMAttitude
+            lastRoll = 0.0
+            lastPitch = 0.0
+        }
     }
 
     func calibrateIMU() {
@@ -134,14 +130,14 @@ class MotionController: NSObject, ObservableObject {
             return
         }
 
-        // Store reference attitude for calibration
+        // Store reference attitude for XY plane mode
+        // This is the "zero position" when device is flat on table
         let attitude = deviceMotion.attitude
         imuReference = attitude.copy() as? CMAttitude
-        imuCalibrationOffset = (attitude.roll, attitude.pitch)
 
-        // Reset velocities when calibrating
-        velocityX = 0.0
-        velocityY = 0.0
+        // Reset last position tracking
+        lastRoll = 0.0
+        lastPitch = 0.0
 
         // Mark as calibrated (session-only, not persisted)
         isCalibrated = true
@@ -162,55 +158,54 @@ class MotionController: NSObject, ObservableObject {
 
     private func processIMUMotion() {
         guard let motionManager = motionManager,
-              let deviceMotion = motionManager.deviceMotion,
-              let lastTime = lastUpdateTime else {
+              let deviceMotion = motionManager.deviceMotion else {
             return
         }
 
-        let currentTime = Date()
-        let deltaTime = currentTime.timeIntervalSince(lastTime)
-        lastUpdateTime = currentTime
-
-        guard deltaTime > 0 else { return }
-
-        let userAcceleration = deviceMotion.userAcceleration
-        var accelX = userAcceleration.x
-        var accelY = userAcceleration.y
-
-        // Apply calibration offset if calibrated
-        // The offset accounts for phone case tilt and uneven surfaces
-        if let reference = imuReference {
-            // Get current attitude
-            let currentAttitude = deviceMotion.attitude
-
-            // Calculate relative attitude change from calibration reference
-            // This gives us the change in orientation since calibration
-            let relativeAttitude = currentAttitude.copy() as! CMAttitude
-            relativeAttitude.multiply(byInverseOf: reference)
-
-            // Get the roll and pitch differences from calibration
-            let rollDiff = relativeAttitude.roll
-            let pitchDiff = relativeAttitude.pitch
-
-            // Compensate for static tilt: if phone is tilted, gravity affects acceleration
-            // Subtract the tilt component to get pure movement acceleration
-            // The sin() of the angle gives us the gravity component in that axis
-            accelX -= sin(rollDiff) * 0.15  // Compensate for roll tilt
-            accelY -= sin(pitchDiff) * 0.15  // Compensate for pitch tilt
+        // For XY plane mode, we need a reference attitude to track changes from
+        guard let reference = imuReference else {
+            return
         }
 
-        if abs(accelX) < minAcceleration && abs(accelY) < minAcceleration {
-            velocityX *= damping
-            velocityY *= damping
-        } else {
-            velocityX += accelX * deltaTime * sensitivity
-            velocityY += accelY * deltaTime * sensitivity
-        }
+        // Get current attitude
+        let currentAttitude = deviceMotion.attitude
 
-        if abs(velocityX) > minMovement || abs(velocityY) > minMovement {
-            sendMovement(deltaX: velocityX, deltaY: velocityY)
-            velocityX = 0.0
-            velocityY = 0.0
+        // Calculate relative attitude change from calibration reference
+        // This gives us the change in orientation since the device was zeroed
+        let relativeAttitude = currentAttitude.copy() as! CMAttitude
+        relativeAttitude.multiply(byInverseOf: reference)
+
+        // For XY plane mode (device flat on table):
+        // - Roll (rotation around X-axis, left-right tilt) → horizontal movement (X)
+        // - Pitch (rotation around Y-axis, forward-backward tilt) → vertical movement (Y)
+        //
+        // When device is flat: roll ≈ 0, pitch ≈ 0
+        // Tilting left (negative roll) → move cursor left (negative X)
+        // Tilting right (positive roll) → move cursor right (positive X)
+        // Tilting forward (positive pitch) → move cursor down (positive Y)
+        // Tilting backward (negative pitch) → move cursor up (negative Y)
+
+        let currentRoll = relativeAttitude.roll
+        let currentPitch = relativeAttitude.pitch
+
+        // Calculate change from last position
+        let deltaRoll = currentRoll - lastRoll
+        let deltaPitch = currentPitch - lastPitch
+
+        // Update last position
+        lastRoll = currentRoll
+        lastPitch = currentPitch
+
+        // Convert attitude changes to mouse movement
+        // Scale by sensitivity and convert radians to pixels
+        // Typical roll/pitch range: -π/2 to π/2, scale appropriately
+        // Invert signs to match expected movement direction
+        let deltaX = -deltaRoll * sensitivity * 100.0  // Roll → X movement (inverted)
+        let deltaY = -deltaPitch * sensitivity * 100.0   // Pitch → Y movement (inverted)
+
+        // Only send movement if significant
+        if abs(deltaX) > 0.1 || abs(deltaY) > 0.1 {
+            sendMovement(deltaX: deltaX, deltaY: deltaY)
         }
     }
 
